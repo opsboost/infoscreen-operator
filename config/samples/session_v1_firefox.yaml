@@ -1,0 +1,7 @@
+apiVersion: session.opsboost.dev/v1
+kind: Firefox
+metadata:
+  name: firefox-sample
+spec:
+  # Add fields here
+  foo: bar

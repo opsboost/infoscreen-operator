@@ -1,0 +1,24 @@
+# permissions for end users to edit firefoxes.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: firefox-editor-role
+rules:
+- apiGroups:
+  - session.opsboost.dev
+  resources:
+  - firefoxes
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - session.opsboost.dev
+  resources:
+  - firefoxes/status
+  verbs:
+  - get

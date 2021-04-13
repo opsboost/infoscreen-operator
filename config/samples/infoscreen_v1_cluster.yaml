@@ -1,0 +1,7 @@
+apiVersion: infoscreen.opsboost.dev/v1
+kind: Cluster
+metadata:
+  name: cluster-sample
+spec:
+  # Add fields here
+  foo: bar

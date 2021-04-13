@@ -1,0 +1,26 @@
+componentConfig: true
+domain: opsboost.dev
+layout:
+- go.kubebuilder.io/v3
+multigroup: true
+projectName: infoscreen
+repo: github.com/OpsBoost/infoscreen-operator
+resources:
+- api:
+    crdVersion: v1
+  controller: true
+  domain: opsboost.dev
+  group: infoscreen
+  kind: Cluster
+  path: github.com/OpsBoost/infoscreen-operator/apis/infoscreen/v1
+  version: v1
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: opsboost.dev
+  group: session
+  kind: Firefox
+  path: github.com/OpsBoost/infoscreen-operator/apis/session/v1
+  version: v1
+version: "3"
