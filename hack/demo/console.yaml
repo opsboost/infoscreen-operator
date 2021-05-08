@@ -1,0 +1,265 @@
+---
+kind: Namespace
+apiVersion: v1
+metadata:
+  name: origin-console
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: origin-console
+  labels:
+    app: origin-console
+subjects:
+  - kind: ServiceAccount
+    name: origin-console
+    namespace: origin-console
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  namespace: origin-console
+  name: origin-console
+  labels:
+    app: origin-console
+---
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  name: origin-console
+  namespace: origin-console
+  labels:
+    app: origin-console
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: origin-console
+  template:
+    metadata:
+      labels:
+        app: origin-console
+    spec:
+      containers:
+        - name: console
+          image: quay.io/openshift/origin-console:4.8.0
+          ports:
+            - name: http
+              containerPort: 9000
+          volumeMounts:
+            - mountPath: /etc/ssl/certs
+              name: ca-certificates
+              readOnly: true
+            - mountPath: /etc/oidc/client
+              name: oidc-client-certificate
+              readOnly: true
+          envFrom:
+            - configMapRef:
+                name: origin-console
+            - configMapRef:
+                name: origin-console-authentication
+                optional: true
+        - name: haproxy
+          image: docker.io/library/haproxy:alpine
+          imagePullPolicy: IfNotPresent
+          volumeMounts:
+            - mountPath: /usr/local/etc/haproxy/haproxy.cfg
+              subPath: haproxy.cfg
+              name: proxy
+            - mountPath: /run/secrets/monitoring
+              name: monitoring-certificate
+      serviceAccountName: origin-console
+      volumes:
+        - name: proxy
+          configMap:
+            name: origin-console
+            items:
+              - key: haproxy.cfg
+                path: haproxy.cfg
+        - name: monitoring-certificate
+          secret:
+            secretName: monitoring-certificate
+        - name: oidc-client-certificate
+          secret:
+            secretName: oidc-client-cert
+            optional: true
+        - name: ca-certificates
+          hostPath:
+            path: /etc/ssl/certs
+      hostAliases:
+        - hostnames:
+            - thanos-querier.openshift-monitoring.svc
+            - alertmanager-main.openshift-monitoring.svc
+            - reporting-operator.openshift-metering.svc
+            - prometheus-k8s.openshift-monitoring.svc
+          ip: 127.0.0.1
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: origin-console
+  namespace: origin-console
+  labels:
+    app: origin-console
+spec:
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+  selector:
+    app: origin-console
+  clusterIP: None
+---
+kind: Ingress
+apiVersion: networking.k8s.io/v1
+metadata:
+  name: console.127.0.0.1.xip.io
+  namespace: origin-console
+  labels:
+    app: origin-console
+spec:
+  rules:
+    - host: "console.127.0.0.1.xip.io"
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: origin-console
+                port:
+                  name: http
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: origin-console
+  namespace: origin-console
+data:
+  BRIDGE_SERVICE_CA_FILE: /run/secrets/kubernetes.io/serviceaccount/ca.crt
+  haproxy.cfg: |
+    global
+      log stdout local0 debug
+
+    defaults
+      log     global
+      mode    http
+      option  httplog
+      default-server init-addr none
+      timeout connect 5000
+      timeout client 60000
+      timeout server 60000
+
+    resolvers kubernetes
+      nameserver dns kube-dns.kube-system.svc.cluster.local:53
+
+    listen prometheus-k8s
+      bind *:9090 ssl crt /run/secrets/monitoring/tls.pem
+      server prometheus prometheus-operated.monitoring.svc.cluster.local:9090 resolvers kubernetes
+
+    listen thanos-host
+      bind *:9091 ssl crt /run/secrets/monitoring/tls.pem
+      server prometheus prometheus-operated.monitoring.svc.cluster.local:9090 resolvers kubernetes
+
+    listen thanos-tenancy
+      bind *:9092 ssl crt /run/secrets/monitoring/tls.pem
+      server thanos prometheus-operated.monitoring.svc.cluster.local:9090 resolvers kubernetes
+
+    listen thanos-tenancy-rules
+      bind *:9093 ssl crt /run/secrets/monitoring/tls.pem
+      server thanos prometheus-operated.monitoring.svc.cluster.local:9090 resolvers kubernetes
+
+    listen alertmanager
+      bind *:9094 ssl crt /run/secrets/monitoring/tls.pem
+      server alertmanager alertmanager-operated.monitoring.svc.cluster.local:9093 resolvers kubernetes
+
+    listen metering
+      bind *:8080 ssl crt /run/secrets/monitoring/tls.pem
+      server metering metering.monitoring.svc.cluster.local:8080 resolvers kubernetes
+---
+kind: ServiceAccount
+apiVersion: v1
+metadata:
+  name: monitoring-certifcate-generator
+  namespace: origin-console
+  labels:
+    app: monitoring-certifcate-generator
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: monitoring-certifcate-generator
+  namespace: origin-console
+rules:
+  - apiGroups:
+      - ''
+    resources:
+      - secrets
+    verbs:
+      - get
+      - list
+      - create
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: monitoring-certifcate-generator
+  namespace: origin-console
+  labels:
+    app: monitoring-certifcate-generator
+spec:
+  ttlSecondsAfterFinished: 5
+  template:
+    metadata:
+      name: monitoring-certifcate-generator
+      labels:
+        app: monitoring-certifcate-generator
+    spec:
+      tolerations:
+        - key: "node-role.kubernetes.io/master"
+          effect: "NoSchedule"
+      nodeSelector:
+        node-role.kubernetes.io/master: ""
+      restartPolicy: Never
+      volumes:
+        - name: pki
+          hostPath:
+            path: /etc/kubernetes/pki
+      serviceAccountName: monitoring-certifcate-generator
+      containers:
+        - name: monitoring-certifcate-generator
+          image: docker.io/steigr/k8s-cert-generator:v0.1
+          volumeMounts:
+            - mountPath: /etc/kubernetes/pki
+              name: pki
+          args:
+            - monitoring-certificate
+          env:
+            - name: SAN
+              value: DNS:thanos-querier.openshift-monitoring.svc,DNS:alertmanager-main.openshift-monitoring.svc,DNS:reporting-operator.openshift-metering.svc,DNS:prometheus-k8s.openshift-monitoring.svc
+            - name: NAMESPACE
+              value: origin-console
+            - name: CN
+              value: prometheus-k8s.openshift-monitoring.svc
+            - name: LABEL_app
+              value: origin-console
+          securityContext:
+            privileged: true
+---
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: monitoring-certifcate-generator
+  namespace: origin-console
+subjects:
+  - kind: ServiceAccount
+    name: monitoring-certifcate-generator
+    namespace: origin-console
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: monitoring-certifcate-generator

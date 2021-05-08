@@ -18,13 +18,13 @@ package session
 
 import (
 	"context"
+	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/intstr"
-
-	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/intstr"
+	kmapi "kmodules.xyz/client-go/api/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -66,10 +66,27 @@ func (r *FirefoxReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	var (
 		immediateTermination         int64 = 0
 		doNotAutomountServiceAccount       = false
-		defaultTempDirSize                 = resource.MustParse("64Mi")
+		defaultTempDirSize                 = resource.MustParse("128Mi")
 		blockOwnerDeletion                 = true
 		ownerIsController                  = true
+		err                          error
 	)
+
+	firefox.Status.ObservedGeneration = firefox.Generation
+	firefox.Status.Phase = sessionv1.ScreenStatusProvisioning
+	firefox.Status.Conditions = append(firefox.Status.Conditions, kmapi.Condition{
+		Type:               string(sessionv1.ScreenStatusProvisioning),
+		Status:             corev1.ConditionTrue,
+		ObservedGeneration: firefox.Generation,
+		LastTransitionTime: metav1.Now(),
+		Reason:             "Changed",
+		Message:            "Creating child resources",
+	})
+
+	//err = r.Status().Update(context.Background(), &firefox)
+	//if err != nil {
+	//	return reconcile.Result{}, err
+	//}
 
 	envVars := []corev1.EnvVar{
 		{
@@ -118,7 +135,7 @@ func (r *FirefoxReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 						LocalObjectReference: corev1.LocalObjectReference{
 							Name: firefox.Spec.Credentials.SecretRef.Name,
 						},
-						Key: "username",
+						Key: "GF_SECURITY_ADMIN_USER",
 					},
 				},
 			})
@@ -133,7 +150,7 @@ func (r *FirefoxReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 						LocalObjectReference: corev1.LocalObjectReference{
 							Name: firefox.Spec.Credentials.SecretRef.Name,
 						},
-						Key: "password",
+						Key: "GF_SECURITY_ADMIN_PASSWORD",
 					},
 				},
 			})
@@ -208,8 +225,6 @@ func (r *FirefoxReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 			AutomountServiceAccountToken:  &doNotAutomountServiceAccount,
 		},
 	}
-
-	var err error
 
 	if err = r.Create(ctx, &pod); err != nil {
 		return ctrl.Result{}, err

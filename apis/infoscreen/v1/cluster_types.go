@@ -44,7 +44,7 @@ const (
 type ClusterStatus struct {
 	// Specifies the current phase of the database
 	// +optional
-	Phase ClusterPhase `json:"phase,omitempty" protobuf:"bytes,1,opt,name=phase,casttype=DatabasePhase"`
+	Phase ClusterPhase `json:"phase,omitempty" protobuf:"bytes,1,opt,name=phase,casttype=ClusterPhase"`
 	// observedGeneration is the most recent generation observed for this resource. It corresponds to the
 	// resource's generation, which is updated on mutation by the API Server.
 	// +optional

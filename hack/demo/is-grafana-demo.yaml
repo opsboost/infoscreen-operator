@@ -1,0 +1,13 @@
+apiVersion: session.opsboost.dev/v1
+kind: Firefox
+metadata:
+  name: grafana-demo
+  labels:
+    session: grafana-demo
+spec:
+  target: grafana5
+  url: 'http://grafana-service:3000/'
+  destination: 'http://grafana-service:3000/d/OvqphNuMz/demo'
+  credentials:
+    secretRef:
+      name: grafana-admin-credentials

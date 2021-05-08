@@ -32,12 +32,6 @@ type FirefoxSpec struct {
 	Destination string           `json:"destination,omitempty"`
 }
 
-// FirefoxStatus defines the observed state of Firefox
-type FirefoxStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-}
-
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 //+kubebuilder:resource:path=firefoxes
@@ -47,8 +41,8 @@ type Firefox struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   FirefoxSpec   `json:"spec,omitempty"`
-	Status FirefoxStatus `json:"status,omitempty"`
+	Spec   FirefoxSpec  `json:"spec,omitempty"`
+	Status ScreenStatus `json:"status,omitempty"`
 }
 
 //+kubebuilder:object:root=true
