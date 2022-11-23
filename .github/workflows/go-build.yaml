@@ -5,28 +5,52 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v3
+    - name: Checkout
+      uses: actions/checkout@v3
 
-      - name: Build
-        uses: actions/setup-go@v3
-        with:
-          go-version: '1.19'
-          check-latest: true
-      - run: |
-          go build
-          ./infoscreen-operator --help
-          mv infoscreen-operator iss-operator-amd64
+    - name: Build
+      uses: actions/setup-go@v3
+      with:
+        go-version: '1.19'
+        check-latest: true
+    - run: |
+        go build
+        ./infoscreen-operator --help
+        mv infoscreen-operator iss-operator-amd64
 
-      - name: Create archive
-        run: |
-          xz iss-operator-amd64
+    - name: Create archive
+      run: |
+        xz iss-operator-amd64
 
-      - name: Release
-        uses: "marvinpinto/action-automatic-releases@latest"
-        with:
-          repo_token: "${{ secrets.GITHUB_TOKEN }}"
-          prerelease: false
-          automatic_release_tag: "latest"
-          files: |
-            iss-operator-amd64.xz
+    - name: Release
+      uses: "marvinpinto/action-automatic-releases@latest"
+      with:
+        repo_token: "${{ secrets.GITHUB_TOKEN }}"
+        prerelease: false
+        automatic_release_tag: "latest"
+        files: |
+          iss-operator-amd64.xz
+
+    - name: Set up QEMU
+      uses: docker/setup-qemu-action@v2
+
+    - name: Login to GitHub Container Registry
+      uses: docker/login-action@v2
+      with:
+       registry: ghcr.io
+       username: ${{ github.actor }}
+       password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v2
+
+    - name: Build and push to ghcr
+      id: docker_build
+      uses: docker/build-push-action@v2
+      with:
+        platforms: linux/amd64
+        push: true
+        tags: ghcr.io/opsboost/iss-operator:latest
+
+    - name: Image digest
+      run: echo ${{ steps.docker_build.outputs.digest }}
