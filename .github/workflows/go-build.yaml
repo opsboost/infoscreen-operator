@@ -1,4 +1,11 @@
-on: [push, pull_request]
+on:
+  push:
+    paths-ignore:
+      - '**.md'
+  pull_request:
+    paths-ignore:
+      - '**.md'
+  workflow_dispatch:
 
 jobs:
   build:
@@ -54,3 +61,7 @@ jobs:
 
     - name: Image digest
       run: echo ${{ steps.docker_build.outputs.digest }}
+
+    - name: Test
+      run: |
+        ./run-test.sh "ghcr.io/opsboost/iss-operator:latest"
